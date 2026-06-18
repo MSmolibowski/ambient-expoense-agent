@@ -1,6 +1,6 @@
 name: "ambient-expense-agent"
 acli_version: "0.4.0"
-agent_directory: "app"
+agent_directory: "expense_agent"
 region: "us-east1"
 base_template: "adk"
 generated_at: "2026-06-18T19:40:33.829176+00:00"
