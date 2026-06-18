@@ -28,6 +28,10 @@ os.environ.setdefault("GOOGLE_GENAI_USE_VERTEXAI", "True")
 
 # Dummy credentials class to bypass google-auth validation in tests
 class DummyCredentials(Credentials):
+    def __init__(self, token="dummy-token"):
+        super().__init__()
+        self.token = token
+
     def refresh(self, request):
         pass
 

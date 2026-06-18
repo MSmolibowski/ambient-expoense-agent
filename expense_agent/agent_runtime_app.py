@@ -44,7 +44,13 @@ class AgentEngineApp(AdkApp):
     def register_feedback(self, feedback: dict[str, Any]) -> None:
         """Collect and log feedback."""
         feedback_obj = Feedback.model_validate(feedback)
-        self.logger.log_struct(feedback_obj.model_dump(), severity="INFO")
+        if os.environ.get("INTEGRATION_TEST") == "TRUE":
+            logging.info(f"[TEST MOCK LOG] feedback: {feedback_obj.model_dump()}")
+            return
+        try:
+            self.logger.log_struct(feedback_obj.model_dump(), severity="INFO")
+        except Exception as e:
+            logging.warning(f"Failed to log feedback to Cloud Logging: {e}")
 
     def register_operations(self) -> dict[str, list[str]]:
         """Registers the operations of the Agent."""

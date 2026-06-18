@@ -15,6 +15,7 @@
 import os
 import json
 import base64
+import re
 from pydantic import BaseModel, Field
 from google.adk.workflow import Workflow, START, node, Edge
 from google.adk.agents import LlmAgent
@@ -58,7 +59,6 @@ os.environ["GOOGLE_CLOUD_LOCATION"] = os.environ.get("GOOGLE_CLOUD_LOCATION", "g
 @node
 def parse_event(ctx: Context, node_input: types.Content) -> dict:
     """Parses incoming JSON events that may be base64-encoded (from Pub/Sub) or plain JSON."""
-    # Retrieve the text prompt or payload from the message content
     text = ""
     if node_input.parts:
         text = node_input.parts[0].text or ""
@@ -66,13 +66,10 @@ def parse_event(ctx: Context, node_input: types.Content) -> dict:
     try:
         payload = json.loads(text)
     except json.JSONDecodeError:
-        # If not valid JSON, treat the text as description
         payload = {"data": {"description": text}}
         
-    # Details sit under a "data" key
     data = payload.get("data", payload)
     
-    # Handle base64 encoded data (standard in real Google Cloud Pub/Sub)
     if isinstance(data, str):
         try:
             decoded_bytes = base64.b64decode(data.encode("utf-8"))
@@ -83,7 +80,6 @@ def parse_event(ctx: Context, node_input: types.Content) -> dict:
     if not isinstance(data, dict):
         data = {"description": str(data)}
         
-    # Extract fields with safe fallbacks
     expense = {
         "amount": float(data.get("amount", 0.0)),
         "submitter": str(data.get("submitter", "Unknown")),
@@ -99,18 +95,69 @@ def parse_event(ctx: Context, node_input: types.Content) -> dict:
 def evaluate_expense(ctx: Context, node_input: dict) -> Event:
     """Applies routing logic based on the expense threshold."""
     amount = node_input.get("amount", 0.0)
-    
-    # Keep the parsed expense in session state for later nodes
     state_delta = {"expense": node_input}
     
-    # Apply threshold rule (routing is handled in code)
     if amount < THRESHOLD:
         return Event(output=node_input, route="auto_approve", state=state_delta)
     else:
         return Event(output=node_input, route="llm_review", state=state_delta)
 
 
-# 3. LLM Node for Risk Judgment
+# Regex rules for personal data scrubbing
+SSN_REGEX = re.compile(r'\b\d{3}-\d{2}-\d{4}\b|\b\d{9}\b')
+CC_REGEX = re.compile(r'\b(?:\d[ -]*?){13,19}\b')
+
+
+# 3. Security Checkpoint Node (Scrub PII and detect prompt injection)
+@node
+def security_checkpoint(ctx: Context, node_input: dict) -> Event:
+    """Security checkpoint that scrubs PII and defends against prompt injection."""
+    description = node_input.get("description", "")
+    redacted_categories = []
+    scrubbed_description = description
+    
+    # Scrub SSNs
+    if SSN_REGEX.search(scrubbed_description):
+        scrubbed_description = SSN_REGEX.sub("[REDACTED SSN]", scrubbed_description)
+        redacted_categories.append("SSN")
+        
+    # Scrub Credit Cards
+    if CC_REGEX.search(scrubbed_description):
+        scrubbed_description = CC_REGEX.sub("[REDACTED CREDIT CARD]", scrubbed_description)
+        redacted_categories.append("CREDIT_CARD")
+        
+    # Update description in node output & state
+    updated_expense = node_input.copy()
+    updated_expense["description"] = scrubbed_description
+    
+    state_delta = {
+        "expense": updated_expense,
+        "redacted_categories": redacted_categories
+    }
+    
+    # Prompt injection detection triggers
+    injection_triggers = [
+        "ignore", "bypass", "override", "system prompt", "instead of",
+        "instruction", "auto-approve", "auto approve", "force approval",
+        "you are now", "new rule", "disable rules"
+    ]
+    is_injection = any(trigger in description.lower() for trigger in injection_triggers)
+    
+    if is_injection:
+        # Raise alert, bypass LLM, route straight to human manager review
+        state_delta["security_alert"] = True
+        state_delta["risk_assessment"] = {
+            "risk_score": 10,
+            "risk_factors": ["PROMPT INJECTION ATTEMPT DETECTED"],
+            "alert_triggered": True,
+            "reason": "The expense description contained keywords matching prompt injection attempts."
+        }
+        return Event(output=updated_expense, route="security_event", state=state_delta)
+    else:
+        return Event(output=updated_expense, route="clean", state=state_delta)
+
+
+# 4. LLM Node for Risk Judgment
 class RiskAssessment(BaseModel):
     risk_score: int = Field(description="Risk score from 1 (lowest) to 10 (highest)")
     risk_factors: list[str] = Field(description="List of risk factors or anomalies identified in the expense")
@@ -130,14 +177,13 @@ llm_review_node = LlmAgent(
 )
 
 
-# 4. Human-in-the-Loop manager approval node
+# 5. Human-in-the-Loop manager approval node
 @node(rerun_on_resume=True)
 async def manager_approval(ctx: Context, node_input: dict):
     """Pauses the workflow using RequestInput to get approval from a manager."""
     expense = ctx.state.get("expense", {})
     risk_assessment = ctx.state.get("risk_assessment", {})
     
-    # Pause the workflow if we don't have approval input yet
     if not ctx.resume_inputs or "approved" not in ctx.resume_inputs:
         amount = expense.get("amount", 0.0)
         item = expense.get("description", "unknown")
@@ -151,12 +197,15 @@ async def manager_approval(ctx: Context, node_input: dict):
             f"- Category: {expense.get('category')}\n"
             f"- Risk Score: {risk_score}/10 ({alert})\n"
             f"- Reason: {risk_assessment.get('reason')}\n"
-            f"\nDo you approve this expense? (yes/no)"
         )
+        # Append security alert details if present
+        if ctx.state.get("security_alert"):
+            message += f"- [SECURITY ALERT]: Prompt injection pattern detected!\n"
+            
+        message += f"\nDo you approve this expense? (yes/no)"
         yield RequestInput(interrupt_id="approved", message=message)
         return
 
-    # Once resumed, record response
     manager_response = ctx.resume_inputs["approved"].strip().lower()
     
     if manager_response in ["yes", "y", "approve"]:
@@ -165,7 +214,7 @@ async def manager_approval(ctx: Context, node_input: dict):
         yield Event(output={"status": "rejected", "expense": expense})
 
 
-# 5. Final Outcome Recording Node
+# 6. Final Outcome Recording Node
 @node
 def record_outcome(ctx: Context, node_input: dict):
     """Final node that records the outcome of the expense report."""
@@ -198,8 +247,10 @@ root_agent = Workflow(
     edges=[
         Edge(from_node=START, to_node=parse_event),
         Edge(from_node=parse_event, to_node=evaluate_expense),
-        Edge(from_node=evaluate_expense, to_node=llm_review_node, route="llm_review"),
+        Edge(from_node=evaluate_expense, to_node=security_checkpoint, route="llm_review"),
         Edge(from_node=evaluate_expense, to_node=record_outcome, route="auto_approve"),
+        Edge(from_node=security_checkpoint, to_node=manager_approval, route="security_event"),
+        Edge(from_node=security_checkpoint, to_node=llm_review_node, route="clean"),
         Edge(from_node=llm_review_node, to_node=manager_approval),
         Edge(from_node=manager_approval, to_node=record_outcome),
     ]
