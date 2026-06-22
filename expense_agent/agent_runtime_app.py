@@ -36,6 +36,7 @@ from google.adk.cli.utils.service_factory import (
     create_session_service_from_options,
     create_artifact_service_from_options,
 )
+from google.adk.artifacts import GcsArtifactService, InMemoryArtifactService
 from vertexai.agent_engines.templates.adk import AdkApp
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
@@ -89,7 +90,7 @@ class AgentEngineApp(AdkApp):
         return self
 
 
-gemini_location = os.environ.get("GOOGLE_CLOUD_LOCATION")
+gemini_location = "global"
 logs_bucket_name = os.environ.get("LOGS_BUCKET_NAME")
 agent_runtime = AgentEngineApp(
     app=adk_app,

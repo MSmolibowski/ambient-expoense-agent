@@ -51,8 +51,8 @@ if "GEMINI_API_KEY" in os.environ and not os.environ.get("GOOGLE_GENAI_USE_VERTE
 else:
     os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = os.environ.get("GOOGLE_GENAI_USE_VERTEXAI", "True")
 
-# Default location to global if not set
-os.environ["GOOGLE_CLOUD_LOCATION"] = os.environ.get("GOOGLE_CLOUD_LOCATION", "global")
+# Default location to global
+os.environ["GOOGLE_CLOUD_LOCATION"] = "global"
 
 
 # 1. Input Parsing Node
@@ -206,7 +206,18 @@ async def manager_approval(ctx: Context, node_input: dict):
         yield RequestInput(interrupt_id="approved", message=message)
         return
 
-    manager_response = ctx.resume_inputs["approved"].strip().lower()
+    approved_val = ctx.resume_inputs["approved"]
+    if isinstance(approved_val, dict):
+        manager_response = approved_val.get("approved") or approved_val.get("value")
+        if manager_response is None and approved_val:
+            manager_response = next(iter(approved_val.values()))
+    else:
+        manager_response = approved_val
+
+    if manager_response:
+        manager_response = str(manager_response).strip().lower()
+    else:
+        manager_response = ""
     
     if manager_response in ["yes", "y", "approve"]:
         yield Event(output={"status": "approved", "expense": expense})
