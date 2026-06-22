@@ -259,6 +259,6 @@ root_agent = Workflow(
 # App wrapping the workflow agent
 app = App(
     root_agent=root_agent,
-    name="app",
+    name="expense_agent",
     resumability_config=ResumabilityConfig(is_resumable=True)  # Required for human-in-the-loop pauses
 )

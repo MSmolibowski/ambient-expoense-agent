@@ -128,6 +128,64 @@ wheels = [
 ]
 
 [[package]]
+name = "ambient-expense-agent"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "fastapi" },
+    { name = "gcsfs" },
+    { name = "google-adk", extra = ["gcp"] },
+    { name = "google-cloud-aiplatform", extra = ["agent-engines", "evaluation"] },
+    { name = "google-cloud-logging" },
+    { name = "opentelemetry-instrumentation-google-genai" },
+    { name = "protobuf" },
+    { name = "uvicorn" },
+]
+
+[package.optional-dependencies]
+eval = [
+    { name = "google-adk", extra = ["eval"] },
+    { name = "google-cloud-aiplatform", extra = ["evaluation"] },
+]
+lint = [
+    { name = "codespell" },
+    { name = "ruff" },
+    { name = "ty" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "nest-asyncio" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "codespell", marker = "extra == 'lint'", specifier = ">=2.2.0,<3.0.0" },
+    { name = "fastapi" },
+    { name = "gcsfs", specifier = ">=2024.11.0" },
+    { name = "google-adk", extras = ["eval"], marker = "extra == 'eval'", specifier = ">=2.0.0,<3.0.0" },
+    { name = "google-adk", extras = ["gcp"], specifier = ">=2.0.0,<3.0.0" },
+    { name = "google-cloud-aiplatform", extras = ["evaluation"], marker = "extra == 'eval'", specifier = ">=1.156.0" },
+    { name = "google-cloud-aiplatform", extras = ["evaluation", "agent-engines"], specifier = ">=1.156.0" },
+    { name = "google-cloud-logging", specifier = ">=3.12.0,<4.0.0" },
+    { name = "opentelemetry-instrumentation-google-genai", specifier = ">=0.1.0,<1.0.0" },
+    { name = "protobuf", specifier = ">=6.31.1,<7.0.0" },
+    { name = "ruff", marker = "extra == 'lint'", specifier = ">=0.4.6,<1.0.0" },
+    { name = "ty", marker = "extra == 'lint'", specifier = ">=0.0.1a0" },
+    { name = "uvicorn" },
+]
+provides-extras = ["eval", "lint"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "nest-asyncio", specifier = ">=1.6.0,<2.0.0" },
+    { name = "pytest", specifier = ">=9.0.2,<10.0.0" },
+    { name = "pytest-asyncio", specifier = ">=1.0.0,<2.0.0" },
+]
+
+[[package]]
 name = "annotated-doc"
 version = "0.0.4"
 source = { registry = "https://pypi.org/simple" }
@@ -1499,60 +1557,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/ec/fa/6ac3984c7d57c6a7b0dd18cfae3dfaf509b7f3eb80075b38fac357ef45b9/litellm-1.85.4.tar.gz", hash = "sha256:f4cb776b7ae2a57e63f64092933641b837d7516ef878ddca93d6dac890282ae4", size = 15350215, upload-time = "2026-06-04T04:58:03.495Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d1/95/11d405f6841f3ddfa4f20229a119bc8e4210ba4842dc1b206d473ccb7e14/litellm-1.85.4-py3-none-any.whl", hash = "sha256:66ba162d61478fc9607fbdab73e2e528f9c518382f087788074e605f562f5c9d", size = 16984328, upload-time = "2026-06-04T04:57:59.234Z" },
-]
-
-[[package]]
-name = "ambient-expense-agent"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "gcsfs" },
-    { name = "google-adk", extra = ["gcp"] },
-    { name = "google-cloud-aiplatform", extra = ["agent-engines", "evaluation"] },
-    { name = "google-cloud-logging" },
-    { name = "opentelemetry-instrumentation-google-genai" },
-    { name = "protobuf" },
-]
-
-[package.optional-dependencies]
-eval = [
-    { name = "google-adk", extra = ["eval"] },
-    { name = "google-cloud-aiplatform", extra = ["evaluation"] },
-]
-lint = [
-    { name = "codespell" },
-    { name = "ruff" },
-    { name = "ty" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "nest-asyncio" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "codespell", marker = "extra == 'lint'", specifier = ">=2.2.0,<3.0.0" },
-    { name = "gcsfs", specifier = ">=2024.11.0" },
-    { name = "google-adk", extras = ["eval"], marker = "extra == 'eval'", specifier = ">=2.0.0,<3.0.0" },
-    { name = "google-adk", extras = ["gcp"], specifier = ">=2.0.0,<3.0.0" },
-    { name = "google-cloud-aiplatform", extras = ["evaluation"], marker = "extra == 'eval'", specifier = ">=1.156.0" },
-    { name = "google-cloud-aiplatform", extras = ["evaluation", "agent-engines"], specifier = ">=1.156.0" },
-    { name = "google-cloud-logging", specifier = ">=3.12.0,<4.0.0" },
-    { name = "opentelemetry-instrumentation-google-genai", specifier = ">=0.1.0,<1.0.0" },
-    { name = "protobuf", specifier = ">=6.31.1,<7.0.0" },
-    { name = "ruff", marker = "extra == 'lint'", specifier = ">=0.4.6,<1.0.0" },
-    { name = "ty", marker = "extra == 'lint'", specifier = ">=0.0.1a0" },
-]
-provides-extras = ["eval", "lint"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "nest-asyncio", specifier = ">=1.6.0,<2.0.0" },
-    { name = "pytest", specifier = ">=9.0.2,<10.0.0" },
-    { name = "pytest-asyncio", specifier = ">=1.0.0,<2.0.0" },
 ]
 
 [[package]]
